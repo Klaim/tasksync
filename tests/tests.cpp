@@ -30,19 +30,15 @@ TEST_CASE( "no task no problem" )
 TEST_CASE( "tasks are joined after join not after reset" )
 {
     TaskSynchronizer task_sync;
-
     CHECK( !task_sync.is_joined() );
 
     task_sync.join_tasks();
-
     CHECK( task_sync.is_joined() );
 
     task_sync.reset();
-
     CHECK( !task_sync.is_joined() );
 
     task_sync.join_tasks();
-
     CHECK( task_sync.is_joined() );
 }
 
@@ -81,12 +77,13 @@ TEST_CASE( "finished synched task never blocks join" )
     TaskSynchronizer task_sync;
     auto synched_task = task_sync.synchronized( [&] { ++execution_count; } );
     CHECK( execution_count == 0 );
+
     synched_task();
     CHECK( execution_count == 1 );
 
     task_sync.join_tasks();
-
     CHECK( execution_count == 1 );
+
     synched_task();
     CHECK( execution_count == 1 );
 
@@ -115,14 +112,16 @@ TEST_CASE( "executing synched task always block join" )
     TaskSynchronizer task_sync;
 
     std::atomic<bool> end_task_requested{ false };
+    std::atomic<bool> ready_to_end{ false };
 
     sequence.push_back( 'A' );
 
     auto synched_task = task_sync.synchronized( [&] {
         sequence.push_back( 'B' );
+        ready_to_end = true;
         while( !end_task_requested )
         {
-            std::this_thread::sleep_for( std::chrono::milliseconds{ 1 } );
+            std::this_thread::yield();
         }
         sequence.push_back( 'D' );
     } );
@@ -131,7 +130,10 @@ TEST_CASE( "executing synched task always block join" )
     std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
 
     auto bs_future_again = std::async( std::launch::async, [&] {
-        std::this_thread::sleep_for( std::chrono::milliseconds{ 300 } );
+        while( !ready_to_end )
+        {
+            std::this_thread::yield();
+        }
         sequence.push_back( 'C' );
         end_task_requested = true;
     } );
