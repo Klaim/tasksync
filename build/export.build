@@ -1,0 +1,6 @@
+$out_root/
+{
+  include tasksync/
+}
+
+export $out_root/tasksync/$import.target

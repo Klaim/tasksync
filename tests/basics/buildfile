@@ -1,0 +1,3 @@
+import libs = tasksync%lib{tasksync}
+
+exe{tests}: {hxx ixx txx cxx}{**} $libs testscript{**}
