@@ -16,6 +16,9 @@ namespace core {
         struct on_scope_exit // TODO: replace this by some lib's impl
         {  
             Func func;
+
+            on_scope_exit(Func func) : func(std::move(func)) {}
+
             ~on_scope_exit(){ 
                     try{ 
                         func();
@@ -74,6 +77,10 @@ namespace core {
     */
     class TaskSynchronizer
     {
+        auto make_remote_status()
+        {
+            return std::weak_ptr<Status>{ m_status };
+        }
     public:
 
         TaskSynchronizer() = default;
@@ -182,11 +189,6 @@ namespace core {
             std::unique_lock exit_lock{ m_mutex };
             --m_running_tasks;
             m_task_end_condition.notify_one();
-        }
-
-        auto make_remote_status()
-        {
-            return std::weak_ptr<Status>{ m_status };
         }
 
         void wait_all_running_tasks()
