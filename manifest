@@ -10,3 +10,8 @@ email: mjklaim@gmail.com
 depends: * build2 >= 0.14.0
 depends: * bpkg >= 0.14.0
 #depends: libhello ^1.0.0
+
+requires: c++17
+
+depends: doctest
+

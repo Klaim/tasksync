@@ -2,56 +2,81 @@
 
 #include <atomic>
 #include <string>
-#include <boost/scope_exit.hpp>
-
-#include <utilcxx/assert.hpp>
-
-#include "thread.hpp"
+#include <cassert>
+#include <thread>
+#include <memory>
 #include "trycall.hpp"
-#include "log.hpp"
-#include "stringview.hpp"
 
 namespace netrush {
 namespace core {
 
-    /** Synchronize tasks execution in multiple threads with it's lifetime.
+    namespace details {
+        
+        template<class Func>
+        struct on_scope_exit // TODO: replace this by some lib's impl
+        {  
+            Func func;
+            ~on_scope_exit(){ 
+                    try{ 
+                        func();
+                }catch(...){
+                    assert(false);
+                }
+            } 
+        };
+    }
 
-        Any callable object can be transformed to another similar callable object
-        that will synchronize it's execution with this synchronizer.
+    /** Synchronize tasks execution in multiple threads with this object's lifetime.
+        
+        A synchronized callable will never execute outside the lifetime of this object.
+        To achieve this, the callable must be wrapped into a callable with the same
+        features that will guarantee that
+          - if this object have been destroyed and then the synchronized callable is invoked,
+            the callable will not execute it's code;
+          - if this object is being joined and/or destroyed, it will block until any already started
+            tasks are ended;
 
-        Once one of this synchronizer's joining function is called,
-        synchronized callables will behave as follow:
-            - if a callable was never called before, it's body will never be executed
-                when called after the joining call;
-            - if the callable is being called, the joining function will block until
-                it's execution is finished.
+        WARNING: When used as a member of a type to syncrhonized tasks of the `this` instance, it is 
+        best to set the TaskSynchronizer as the last member so that it is the first one to be destroyed;
+        alternatively, `.join_tasks()` can be called manually in the destructor too.
 
-        Also provides synchronization with ReschedulableTask objects to stop rescheduling once
-        a joining function is called, in addition to the behaviour described before.
+        Example:
+        
+            class MonSystem
+            {
+            public:
 
+                // Whatever "scheduler" or "other_sys" is....
+                MonSystem(Scheduler scheduler, OtherSystem other_sys) : scheduler(sccheduler) 
+                {
+                    // This callback will do nothing if this object is destroyed.
+                    other_sys.on_something(synchronized.synchronized([this]{ ok(); }));
+                }
+
+                void ok();
+
+                void launch_work()
+                {
+                    // This task will do nothing if this object is destroyed.
+                    scheduler.push(task_sync.synchronized([this]{
+                        ...
+                    }));    
+                }
+
+            private:
+
+                Scheduler scheduler;
+                BigData data;
+
+                task_synchronizer task_sync; // When this object is destroyed, join tasks.
+            };
 
     */
     class TaskSynchronizer
     {
     public:
 
-        /** Construction with name.
-
-            The name is used in debugging logs to help with debugging released versions.
-
-            @param name     Pointer to characters of the name that must be null-terminated
-                            and must outlive this object's lifetime.
-        */
-        explicit TaskSynchronizer( string_view name )
-            : m_name( name )
-        {
-        }
-
-        /** Default constructor, no name provided on logging. */
-        TaskSynchronizer()
-            : m_name( "<unnamed>" )
-        {
-        }
+        TaskSynchronizer() = default;
 
         /** Destructor, joining tasks synchronized with this object.
             @see join_tasks()
@@ -67,18 +92,14 @@ namespace core {
         TaskSynchronizer( TaskSynchronizer&& other ) noexcept = delete;
         TaskSynchronizer& operator=( TaskSynchronizer&& other ) noexcept = delete;
 
-        /** Transform the provided callable into a similar but synchronized callable.
+        /** Wrap the provided callable into a similar but synchronized callable.
 
-            Wraps the body of the callable into another callable which will, on call,
-            checks that:
-                - if joining function of this synchronizer have been called, skip execution;
-                - if no joining function have been called, notify the synchronizer that the
+            The wrapper guarantees that if the resulting callable is invoked:
+                - if the joining function of this synchronizer have been called, skip execution;
+                - if the joining function of this synchronizer is called while the callback is invoked,
+                    it will block until the end of the body of the original callable;
+                - if no joining function have been called yet, notify the synchronizer that the
                     execution begins, then execute the body;
-
-            Note that if the callable is a ReschedulableTask, it will not be unscheduled after join.
-            To achieve that, use the task synchronization make_synchronized() instead.
-
-            @remark Throws an exception if called while is_joined() is true.
 
             @param work     Any callable object.
             @return A wrapped version of the provided callable object, adding checks
@@ -96,31 +117,14 @@ namespace core {
                 if( status && !status->join_requested ) // Don't add running tasks while join was requested.
                 { // We can use 'this' safely in this scope.
                     notify_begin_execution();
-                    BOOST_SCOPE_EXIT_ALL(this){ notify_end_execution(); };
+                    details::on_scope_exit _{ [this]{ notify_end_execution(); } };
                     try_call( new_work, std::forward<decltype( args )>( args )... );
                     status.reset(); // Make sure we are not keeping the TaskSynchronizer waiting
                 }
             };
         }
 
-        /** Create a synchronized object of type meeting the ReschedulableTask concept.
-            @see Task as one compatible type meeting the ReschedulableTask requirements.
-
-            @tparam TaskType    A type matching the ReschedulableTask concept.
-            @param init_args    Initialization arguments passed to the object's constructor.
-            @return A TaskType object constructed with the initialization arguments and setup
-                    to be in sync with this synchronizer.
-        */
-        template< class TaskType, class... InitArgs >
-        TaskType make_synchronized( InitArgs&&... init_args )
-        {
-            return TaskType( std::forward<InitArgs>( init_args )... )
-                .until( [ remote_status = make_remote_status() ]{
-                    return remote_status.expired();
-                });
-        }
-
-        /** Notify all synchronized tasks and blocks until all executing synchronized tasks are done.
+        /** Notify all synchronized tasks and blocks until all already started synchronized tasks are done.
 
             This is a joining function: once it is called, no synchronized task body will be executed again.
             Synchronized tasks which body is being executed will notify this synchronizer once done.
@@ -131,10 +135,8 @@ namespace core {
         */
         void join_tasks()
         {
-            NR_LOG_TRACE( "Joining tasks synched with TaskSynchronizer '" << m_name << "'..." );
             wait_all_running_tasks();
-            UCX_ASSERT_TRUE( is_joined() );
-            NR_LOG_TRACE( "Joining tasks synched with TaskSynchronizer '" << m_name << "' - DONE" );
+            assert( is_joined() );
         }
 
         /** Join synchronized tasks and reset this object's state to be reusable like if it was just constructed.
@@ -147,11 +149,8 @@ namespace core {
         {
             join_tasks();
             m_status = std::make_shared<Status>();
-            UCX_ASSERT_FALSE( is_joined() );
+            assert( !is_joined() );
         }
-
-        /** @return Name of this object that will be used in logging if set on construction. */
-        string_view name() const { return m_name; }
 
         /** @return true if all synchronized tasks have beeen joined, false otherwise. @see join_tasks(), reset()*/
         bool is_joined() const { return !m_status && m_running_tasks == 0; }
@@ -166,13 +165,12 @@ namespace core {
             std::atomic<bool> join_requested { false };
         };
 
-        const string_view m_name;
         std::atomic<int64_t> m_running_tasks{ 0 };
 
         std::shared_ptr<Status> m_status = std::make_shared<Status>();
 
-        mutex m_mutex;
-        condition_variable m_task_end_condition;
+        std::mutex m_mutex;
+        std::condition_variable m_task_end_condition;
 
         void notify_begin_execution()
         {
@@ -181,7 +179,7 @@ namespace core {
 
         void notify_end_execution()
         {
-            unique_lock<mutex> exit_lock{ m_mutex };
+            std::unique_lock exit_lock{ m_mutex };
             --m_running_tasks;
             m_task_end_condition.notify_one();
         }
@@ -196,7 +194,10 @@ namespace core {
             if( !m_status )
                 return;
 
-            unique_lock<mutex> exit_lock{ m_mutex };
+            std::unique_lock exit_lock{ m_mutex };
+
+            if( !m_status )
+                return;
 
             auto remote_status = make_remote_status();
             m_status->join_requested = true;

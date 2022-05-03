@@ -1,1 +1,3 @@
-./: {*/ -build/}
+import libs = tasksync%lib{tasksync} doctest%lib{doctest}
+
+exe{tests}: {hxx ixx txx cxx}{**} $libs testscript{**}

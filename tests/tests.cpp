@@ -1,17 +1,17 @@
-#include <gtest/gtest.h>
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
 
 #include <future>
 #include <atomic>
 #include <string>
 #include <type_traits>
 
-#include <netrush/system/core/tasksynchronizer.hpp>
-#include <netrush/system/core/task.hpp>
+#include <tasksync/tasksync.hpp>
 
 using namespace netrush::core;
 
 
-TEST( Test_TaskSynchronizer, sync_type_never_move )
+TEST_CASE( "sync types never move" )
 {
     static_assert( std::is_copy_constructible<TaskSynchronizer>::value == false, "" );
     static_assert( std::is_copy_assignable<TaskSynchronizer>::value == false, "" );
@@ -21,100 +21,96 @@ TEST( Test_TaskSynchronizer, sync_type_never_move )
 }
 
 
-TEST( Test_TaskSynchronizer, namable )
-{
-    static const auto name = "any_name";
-    TaskSynchronizer task_sync{ name };
-    EXPECT_EQ( name, task_sync.name() );
-}
-
-
-TEST( Test_TaskSynchronizer, no_task_no_problem)
+TEST_CASE( "no task no problem" )
 {
     TaskSynchronizer task_sync;
     task_sync.join_tasks();
 }
 
-TEST( Test_TaskSynchronizer, is_joined_after_join_not_after_reset )
+TEST_CASE( "tasks are joined after join not after reset" )
 {
     TaskSynchronizer task_sync;
 
-    EXPECT_FALSE( task_sync.is_joined() );
+    CHECK( !task_sync.is_joined() );
 
     task_sync.join_tasks();
 
-    EXPECT_TRUE( task_sync.is_joined() );
+    CHECK( task_sync.is_joined() );
 
     task_sync.reset();
 
-    EXPECT_FALSE( task_sync.is_joined() );
+    CHECK( !task_sync.is_joined() );
 
     task_sync.join_tasks();
 
-    EXPECT_TRUE( task_sync.is_joined() );
+    CHECK( task_sync.is_joined() );
 }
 
+namespace {
+    void fail_now()
+    {
+        throw "this code should never be executed";
+    }
+}
 
-TEST( Test_TaskSynchronizer, once_joined_no_op )
+TEST_CASE( "once joined tasks are no-op" )
 {
     TaskSynchronizer task_sync;
     task_sync.join_tasks();
-    EXPECT_TRUE( task_sync.is_joined() );
+    CHECK( task_sync.is_joined() );
 
     task_sync.join_tasks(); // nothing happen if we call it twice
-    EXPECT_TRUE( task_sync.is_joined() );
+    CHECK( task_sync.is_joined() );
 
-    auto no_op = task_sync.synchronized( [] { ADD_FAILURE(); } );
+    auto no_op = task_sync.synchronized( [] { fail_now(); } );
     no_op();
 }
 
 
-TEST( Test_TaskSynchronizer, unexecuted_synched_task_never_block_join )
+TEST_CASE( "unexecuted synched task never blocks join" )
 {
     TaskSynchronizer task_sync;
-    auto synched_task = task_sync.synchronized( [] { ADD_FAILURE(); } );
+    auto synched_task = task_sync.synchronized( [] { fail_now(); } );
     task_sync.join_tasks();
     synched_task();
 }
 
-TEST( Test_TaskSynchronizer, finished_synched_task_never_block_join )
+TEST_CASE( "finished synched task never blocks join" )
 {
     int execution_count = 0;
     TaskSynchronizer task_sync;
     auto synched_task = task_sync.synchronized( [&] { ++execution_count; } );
-    EXPECT_EQ( 0, execution_count );
+    CHECK( execution_count == 0 );
     synched_task();
-    EXPECT_EQ( 1, execution_count );
+    CHECK( execution_count == 1 );
 
     task_sync.join_tasks();
 
-    EXPECT_EQ( 1, execution_count );
+    CHECK( execution_count == 1 );
     synched_task();
-    EXPECT_EQ( 1, execution_count );
+    CHECK( execution_count == 1 );
 
 }
 
 
-TEST( Test_TaskSynchronizer, executed_synched_task_never_block_join )
+TEST_CASE( "executed synched task never blocks join" )
 {
     int execution_count = 0;
     TaskSynchronizer task_sync;
 
     auto synched_task = task_sync.synchronized( [&] { ++execution_count; } );
-    auto task_future = std::async( synched_task );
+    auto task_future = std::async( std::launch::async, synched_task );
     task_future.wait();
 
     task_sync.join_tasks();
 
     synched_task();
 
-    EXPECT_EQ( 1, execution_count );
+    CHECK( execution_count == 1 );
 }
 
-TEST( Test_TaskSynchronizer, executing_synched_task_always_block_join )
+TEST_CASE( "executing synched task always block join" )
 {
-    using namespace netrush;
-
     std::string sequence;
     TaskSynchronizer task_sync;
 
@@ -126,16 +122,16 @@ TEST( Test_TaskSynchronizer, executing_synched_task_always_block_join )
         sequence.push_back( 'B' );
         while( !end_task_requested )
         {
-            this_thread::sleep_for( milliseconds( 1 ) );
+            std::this_thread::sleep_for( std::chrono::milliseconds{ 1 } );
         }
         sequence.push_back( 'D' );
     } );
-    auto bs_future = std::async( synched_task );
+    auto bs_future = std::async( std::launch::async, synched_task );
 
-    this_thread::sleep_for( milliseconds( 100 ) );
+    std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
 
-    auto bs_future_again = std::async( [&] {
-        this_thread::sleep_for( milliseconds( 300 ) );
+    auto bs_future_again = std::async( std::launch::async, [&] {
+        std::this_thread::sleep_for( std::chrono::milliseconds{ 300 } );
         sequence.push_back( 'C' );
         end_task_requested = true;
     } );
@@ -143,24 +139,24 @@ TEST( Test_TaskSynchronizer, executing_synched_task_always_block_join )
     task_sync.join_tasks();
     sequence.push_back( 'E' );
 
-    EXPECT_EQ( "ABCDE", sequence );
+    CHECK( sequence == "ABCDE"  );
 
 }
 
 
-TEST( Test_TaskSynchronizer, throwing_task_never_block_join )
+TEST_CASE( "throwing task never block join" )
 {
     TaskSynchronizer task_sync;
 
     auto synched_task = task_sync.synchronized( [] { throw 42; } );
-    auto task_future = std::async( synched_task );
+    auto task_future = std::async( std::launch::async, synched_task );
     task_future.wait();
 
     task_sync.join_tasks();
 
     synched_task();
 
-    EXPECT_THROW( task_future.get(), int );
+    CHECK_THROWS_AS( task_future.get(), int );
 }
 
 
