@@ -11,26 +11,26 @@ namespace netrush {
 namespace core {
 
     namespace details {
-        
+
         template<class Func>
         struct on_scope_exit // TODO: replace this by some lib's impl
-        {  
+        {
             Func func;
 
             on_scope_exit(Func func) : func(std::move(func)) {}
 
-            ~on_scope_exit(){ 
-                    try{ 
+            ~on_scope_exit(){
+                    try{
                         func();
                 }catch(...){
                     assert(false);
                 }
-            } 
+            }
         };
     }
 
     /** Synchronize tasks execution in multiple threads with this object's lifetime.
-        
+
         A synchronized callable will never execute outside the lifetime of this object.
         To achieve this, the callable must be wrapped into a callable with the same
         features that will guarantee that
@@ -39,18 +39,18 @@ namespace core {
           - if this object is being joined and/or destroyed, it will block until any already started
             tasks are ended;
 
-        WARNING: When used as a member of a type to syncrhonized tasks of the `this` instance, it is 
+        WARNING: When used as a member of a type to syncrhonized tasks of the `this` instance, it is
         best to set the TaskSynchronizer as the last member so that it is the first one to be destroyed;
         alternatively, `.join_tasks()` can be called manually in the destructor too.
 
         Example:
-        
+
             class MonSystem
             {
             public:
 
                 // Whatever "scheduler" or "other_sys" is....
-                MonSystem(Scheduler scheduler, OtherSystem other_sys) : scheduler(sccheduler) 
+                MonSystem(Scheduler scheduler, OtherSystem other_sys) : scheduler(sccheduler)
                 {
                     // This callback will do nothing if this object is destroyed.
                     other_sys.on_something(synchronized.synchronized([this]{ ok(); }));
@@ -63,7 +63,7 @@ namespace core {
                     // This task will do nothing if this object is destroyed.
                     scheduler.push(task_sync.synchronized([this]{
                         ...
-                    }));    
+                    }));
                 }
 
             private:
@@ -124,9 +124,9 @@ namespace core {
                 if( status && !status->join_requested ) // Don't add running tasks while join was requested.
                 { // We can use 'this' safely in this scope.
                     notify_begin_execution();
-                    details::on_scope_exit _{ [&, this]{ 
-                        notify_end_execution(); 
+                    details::on_scope_exit _{ [&, this]{
                         status.reset(); // Make sure we are not keeping the TaskSynchronizer waiting
+                        notify_end_execution();
                     } };
                     std::invoke( new_work, std::forward<decltype( args )>( args )... );
                 }
@@ -188,8 +188,10 @@ namespace core {
 
         void notify_end_execution()
         {
-            std::unique_lock exit_lock{ m_mutex };
-            --m_running_tasks;
+            {
+                std::unique_lock exit_lock{ m_mutex };
+                --m_running_tasks;
+            }
             m_task_end_condition.notify_one();
         }
 
