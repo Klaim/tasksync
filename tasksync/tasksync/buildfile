@@ -28,6 +28,7 @@ lib{tasksync}:
 if($cxx.target.class != 'windows')
 {
   lib{tasksync}: cxx.export.libs += -lpthread
+  liba{tasksync}: cxx.export.libs += -lpthread
 }
 
 # Install into the tasksync/ subdirectory of, say, /usr/include/
