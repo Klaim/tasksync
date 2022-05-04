@@ -8,7 +8,7 @@
 
 #include <tasksync/tasksync.hpp>
 
-using namespace netrush::core;
+using namespace tasksync;
 
 
 TEST_CASE( "sync types never move" )

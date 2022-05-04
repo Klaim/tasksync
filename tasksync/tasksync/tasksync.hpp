@@ -7,8 +7,7 @@
 #include <memory>
 #include <functional>
 
-namespace netrush {
-namespace core {
+namespace tasksync {
 
     namespace details {
 
@@ -217,6 +216,6 @@ namespace core {
 
     };
 
-}}
+}
 
 
