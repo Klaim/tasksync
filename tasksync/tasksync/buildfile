@@ -26,7 +26,9 @@ lib{tasksync}:
 }
 
 if($cxx.target.class != 'windows')
-  cxx.export.libs = -lpthread
+{
+  lib{tasksync}: cxx.export.libs = -lpthread
+}
 
 # Install into the tasksync/ subdirectory of, say, /usr/include/
 # recreating subdirectories.
