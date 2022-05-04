@@ -1,0 +1,18 @@
+: 1
+name: tasksync
+version: 0.1.0-a.0.z
+summary: tasksync C++ library
+license: other: MIT
+description-file: README.md
+url: https://github.com/Klaim/tasksync
+email: mjklaim@gmail.com
+#build-error-email: mjklaim@gmail.com
+tests: tasksync-tests == $
+
+
+depends: * build2 >= 0.14.0
+depends: * bpkg >= 0.14.0
+#depends: libhello ^1.0.0
+
+requires: c++17
+

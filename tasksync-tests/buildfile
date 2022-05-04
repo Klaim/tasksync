@@ -1,0 +1,8 @@
+libs =
+import libs += doctest%lib{doctest} tasksync%lib{tasksync}
+
+./: exe{tasksync-tests} doc{README.md} manifest
+
+exe{tasksync-tests}: {hxx ixx txx cxx}{*} $libs
+
+cxx.poptions =+ "-I$out_root" "-I$src_root"

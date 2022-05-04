@@ -5,7 +5,7 @@
 #include <cassert>
 #include <thread>
 #include <memory>
-#include "trycall.hpp"
+#include <functional>
 
 namespace netrush {
 namespace core {
@@ -108,7 +108,7 @@ namespace core {
                 - if no joining function have been called yet, notify the synchronizer that the
                     execution begins, then execute the body;
 
-            @param work     Any callable object.
+            @param work Any callable object with no arguments. The return value will be ignored.
             @return A wrapped version of the provided callable object, adding checks
                 preventing execution of the original callable body if any joining function
                 of this synchronizer was called.
@@ -124,9 +124,11 @@ namespace core {
                 if( status && !status->join_requested ) // Don't add running tasks while join was requested.
                 { // We can use 'this' safely in this scope.
                     notify_begin_execution();
-                    details::on_scope_exit _{ [this]{ notify_end_execution(); } };
-                    try_call( new_work, std::forward<decltype( args )>( args )... );
-                    status.reset(); // Make sure we are not keeping the TaskSynchronizer waiting
+                    details::on_scope_exit _{ [&, this]{ 
+                        notify_end_execution(); 
+                        status.reset(); // Make sure we are not keeping the TaskSynchronizer waiting
+                    } };
+                    std::invoke( new_work, std::forward<decltype( args )>( args )... );
                 }
             };
         }
@@ -198,14 +200,11 @@ namespace core {
 
             std::unique_lock exit_lock{ m_mutex };
 
-            if( !m_status )
-                return;
-
             auto remote_status = make_remote_status();
             m_status->join_requested = true;
-            m_status = {};
+            m_status.reset();
 
-            m_task_end_condition.wait( exit_lock, [this, remote_status] {
+            m_task_end_condition.wait( exit_lock, [&] {
                 return m_running_tasks == 0
                     && remote_status.expired();
             } );
