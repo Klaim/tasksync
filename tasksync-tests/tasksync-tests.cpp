@@ -1,12 +1,21 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-#include <future>
-#include <atomic>
-#include <string>
-#include <type_traits>
+#if defined(TASKSYNC_AS_MODULE) && TASKSYNC_AS_MODULE == 1
 
-#include <tasksync/tasksync.hpp>
+import std;
+import tasksync;
+
+#else
+
+#   include <future>
+#   include <atomic>
+#   include <string>
+#   include <type_traits>
+
+#   include <tasksync/tasksync.hpp>
+
+#endif
 
 using namespace tasksync;
 

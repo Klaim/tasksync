@@ -4,12 +4,23 @@
 
 cxx.std = latest
 
+if($defined(config.tasksync.as_module) && $config.tasksync.as_module == true)
+{
+    cxx.features.modules = true
+}
+
 using cxx
+
 
 hxx{*}: extension = hpp
 ixx{*}: extension = ipp
 txx{*}: extension = tpp
 cxx{*}: extension = cpp
+
+if($defined(config.tasksync.as_module) && $config.tasksync.as_module == true)
+{
+    mxx{*}: extension = mpp
+}
 
 # Assume headers are importable unless stated otherwise.
 #

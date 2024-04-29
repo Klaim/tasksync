@@ -1,7 +1,9 @@
 intf_libs = # Interface dependencies.
 #import xxxx_libs += libhello%lib{hello}
 
-lib{tasksync}: {hxx ixx txx}{** -version} hxx{version} $intf_libs
+lib{tasksync}: {hxx ixx txx}{** -version} hxx{version} $intf_libs : include = ($config.tasksync.as_module == false)
+lib{tasksync}: {mxx}{*} hxx{version} $intf_libs : include = ($config.tasksync.as_module == true)
+
 
 # Include the generated version header into the distribution (so that we don't
 # pick up an installed one) and don't remove it when cleaning in src (so that
@@ -9,8 +11,8 @@ lib{tasksync}: {hxx ixx txx}{** -version} hxx{version} $intf_libs
 #
 hxx{version}: in{version} $src_root/manifest
 {
-  dist  = true
-  clean = ($src_root != $out_root)
+    dist  = true
+    clean = ($src_root != $out_root)
 }
 
 # Build options.
@@ -19,23 +21,37 @@ cxx.poptions =+ "-I$out_root" "-I$src_root"
 
 # Export options.
 #
+if($config.tasksync.as_module == true)
+{
+    lib{tasksync}:
+    {
+        cxx.export.poptions = -DTASKSYNC_AS_MODULE
+    }
+}
+else
+{
+    lib{tasksync}:
+    {
+        cxx.export.poptions = "-I$out_root" "-I$src_root"
+    }
+}
+
 lib{tasksync}:
 {
-  cxx.export.poptions = "-I$out_root" "-I$src_root"
-  cxx.export.libs = $intf_libs
+    bin.binless = true
+    cxx.export.libs = $intf_libs
 }
 
 if($cxx.target.class != 'windows')
 {
-  lib{tasksync}: cxx.export.libs += -lpthread
-  liba{tasksync}: cxx.export.libs += -lpthread
+    lib{tasksync}: cxx.export.libs += -lpthread
 }
 
 # Install into the tasksync/ subdirectory of, say, /usr/include/
 # recreating subdirectories.
 #
-{hxx ixx txx}{*}:
+{hxx ixx txx mxx}{*}:
 {
-  install         = include/tasksync/
-  install.subdirs = true
+    install         = include/tasksync/
+    install.subdirs = true
 }

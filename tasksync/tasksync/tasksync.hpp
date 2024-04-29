@@ -6,6 +6,7 @@
 #include <thread>
 #include <memory>
 #include <functional>
+#include <mutex>
 
 namespace tasksync {
 

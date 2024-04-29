@@ -1,0 +1,6 @@
+export module tasksync:version;
+
+export
+{
+#include <tasksync/version.hpp>
+}

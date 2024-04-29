@@ -1,0 +1,10 @@
+module;
+#include <tasksync/tasksync.hpp>
+
+export module tasksync;
+
+export import :version;
+
+export using tasksync::TaskSynchronizer;
+
+

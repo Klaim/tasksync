@@ -19,16 +19,19 @@
 // 3.0.0-b.2    0000299999999995020
 // 2.2.0-a.1.z  0000200001999990011
 //
-#define TASKSYNC_VERSION       $tasksync.version.project_number$ULL
-#define TASKSYNC_VERSION_STR   "$tasksync.version.project$"
-#define TASKSYNC_VERSION_ID    "$tasksync.version.project_id$"
-#define TASKSYNC_VERSION_FULL  "$tasksync.version$"
+namespace tasksync
+{
+    inline constexpr auto TASKSYNC_VERSION       = $tasksync.version.project_number$ULL;
+    inline constexpr auto TASKSYNC_VERSION_STR   = "$tasksync.version.project$";
+    inline constexpr auto TASKSYNC_VERSION_ID    = "$tasksync.version.project_id$";
+    inline constexpr auto TASKSYNC_VERSION_FULL  = "$tasksync.version$";
 
-#define TASKSYNC_VERSION_MAJOR $tasksync.version.major$
-#define TASKSYNC_VERSION_MINOR $tasksync.version.minor$
-#define TASKSYNC_VERSION_PATCH $tasksync.version.patch$
+    inline constexpr auto TASKSYNC_VERSION_MAJOR = $tasksync.version.major$;
+    inline constexpr auto TASKSYNC_VERSION_MINOR = $tasksync.version.minor$;
+    inline constexpr auto TASKSYNC_VERSION_PATCH = $tasksync.version.patch$;
 
-#define TASKSYNC_PRE_RELEASE   $tasksync.version.pre_release$
+    inline constexpr auto TASKSYNC_PRE_RELEASE   = $tasksync.version.pre_release$;
 
-#define TASKSYNC_SNAPSHOT_SN   $tasksync.version.snapshot_sn$ULL
-#define TASKSYNC_SNAPSHOT_ID   "$tasksync.version.snapshot_id$"
+    inline constexpr auto TASKSYNC_SNAPSHOT_SN   = $tasksync.version.snapshot_sn$ULL;
+    inline constexpr auto TASKSYNC_SNAPSHOT_ID   = "$tasksync.version.snapshot_id$";
+}
